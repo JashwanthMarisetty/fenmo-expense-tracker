@@ -9,7 +9,13 @@ export async function getExpenses(category, sort, page = 1) {
 
   const res = await fetch(`${API_URL}/expenses?${params}`)
   if (!res.ok) throw new Error('Failed to load expenses')
-  return res.json()
+  const json = await res.json()
+
+  // handle both plain array (old backend) and paginated object (new backend)
+  if (Array.isArray(json)) {
+    return { data: json, pagination: null }
+  }
+  return json
 }
 
 export async function addExpense(data) {
