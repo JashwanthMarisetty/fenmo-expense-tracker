@@ -5,42 +5,53 @@ const pool = require('../db')
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ALLOWED_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Health', 'Entertainment', 'Utilities', 'Other']
 
-// POST /expenses - idempotent expense creation
-router.post('/', async (req, res) => {
-  const { idempotency_key, amount, category, description, date } = req.body
-
+// Returns an error string if the request body is invalid, or null if it is fine.
+function validateExpense({ idempotency_key, amount, category, description, date }) {
   if (!idempotency_key || !UUID_RE.test(idempotency_key)) {
-    return res.status(400).json({ error: 'idempotency_key must be a valid UUID.' })
+    return 'idempotency_key must be a valid UUID.'
   }
 
   if (amount === undefined || amount === null || amount === '') {
-    return res.status(400).json({ error: 'amount is required.' })
+    return 'amount is required.'
   }
-  const parsedAmount = parseFloat(amount)
-  if (isNaN(parsedAmount) || parsedAmount <= 0) {
-    return res.status(400).json({ error: 'amount must be a positive number.' })
+  const parsed = parseFloat(amount)
+  if (isNaN(parsed) || parsed <= 0) {
+    return 'amount must be a positive number.'
   }
   if (!/^\d+(\.\d{1,2})?$/.test(String(amount))) {
-    return res.status(400).json({ error: 'amount must have at most 2 decimal places.' })
+    return 'amount must have at most 2 decimal places.'
   }
 
   if (!category || !category.trim()) {
-    return res.status(400).json({ error: 'category is required.' })
+    return 'category is required.'
   }
   if (!ALLOWED_CATEGORIES.includes(category.trim())) {
-    return res.status(400).json({ error: `category must be one of: ${ALLOWED_CATEGORIES.join(', ')}.` })
+    return `category must be one of: ${ALLOWED_CATEGORIES.join(', ')}.`
   }
 
   if (!description || !description.trim()) {
-    return res.status(400).json({ error: 'description is required.' })
+    return 'description is required.'
   }
   if (description.trim().length > 255) {
-    return res.status(400).json({ error: 'description must be 255 characters or fewer.' })
+    return 'description must be 255 characters or fewer.'
   }
 
   if (!date || isNaN(Date.parse(date))) {
-    return res.status(400).json({ error: 'date must be a valid date (YYYY-MM-DD).' })
+    return 'date must be a valid date (YYYY-MM-DD).'
   }
+
+  return null
+}
+
+// POST /expenses - idempotent expense creation
+router.post('/', async (req, res) => {
+  const validationError = validateExpense(req.body)
+  if (validationError) {
+    return res.status(400).json({ error: validationError })
+  }
+
+  const { idempotency_key, amount, category, description, date } = req.body
+  const parsedAmount = parseFloat(amount).toFixed(2)
 
   try {
     // ON CONFLICT ensures a retry with the same key never creates a duplicate row
@@ -49,7 +60,7 @@ router.post('/', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (idempotency_key) DO NOTHING
        RETURNING *`,
-      [idempotency_key, parsedAmount.toFixed(2), category.trim(), description.trim(), date]
+      [idempotency_key, parsedAmount, category.trim(), description.trim(), date]
     )
 
     if (result.rows.length > 0) {
@@ -69,12 +80,12 @@ router.post('/', async (req, res) => {
   }
 })
 
-// GET /expenses - list with optional filter, sort, and pagination
+// GET /expenses - list with optional filter, sort and pagination
 router.get('/', async (req, res) => {
   const { category, sort } = req.query
 
   // pagination - default 20 per page, max 100
-  const page = Math.max(1, parseInt(req.query.page) || 1)
+  const page  = Math.max(1, parseInt(req.query.page)  || 1)
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20))
   const offset = (page - 1) * limit
 
@@ -108,12 +119,7 @@ router.get('/', async (req, res) => {
 
     return res.status(200).json({
       data: dataResult.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
-      }
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     })
   } catch (err) {
     console.error('GET /expenses:', err)
