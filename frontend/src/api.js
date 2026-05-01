@@ -1,12 +1,13 @@
 const API_URL = import.meta.env.VITE_API_URL || ''
 
-export async function getExpenses(category, sort) {
-  let url = `${API_URL}/expenses?sort=${sort || 'date_desc'}`
-  if (category) {
-    url += `&category=${encodeURIComponent(category)}`
-  }
+export async function getExpenses(category, sort, page = 1) {
+  const params = new URLSearchParams()
+  if (category) params.set('category', category)
+  if (sort) params.set('sort', sort)
+  params.set('page', page)
+  params.set('limit', '20')
 
-  const res = await fetch(url)
+  const res = await fetch(`${API_URL}/expenses?${params}`)
   if (!res.ok) throw new Error('Failed to load expenses')
   return res.json()
 }
