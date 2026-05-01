@@ -14,7 +14,7 @@ A simple expense tracker where you can add, view, filter and sort your expenses.
 - Filter by category (Food, Transport, Shopping etc.)
 - Sort by newest or oldest date
 - Shows total amount for the current list
-- Paginated — loads 20 at a time
+- Paginated — loads 7 at a time
 
 ---
 
@@ -24,6 +24,18 @@ A simple expense tracker where you can add, view, filter and sort your expenses.
 - **Database** — PostgreSQL (hosted on Neon)
 - **Frontend** — React + Vite
 - **Deployed on** — Render (backend), Vercel (frontend)
+
+---
+
+## Why PostgreSQL
+
+The assignment gave a few options — in-memory, JSON file, SQLite, relational DB, no-SQL. I went with PostgreSQL because:
+
+1) Money needs exact decimal storage. `NUMERIC(12,2)` in PostgreSQL is exact. SQLite stores numbers as IEEE 754 floats which can lose precision on decimal values — bad for a money app.
+
+2) It supports `ON CONFLICT` which is how I implemented idempotency. This is a single atomic operation — there's no race condition. In-memory or file-based stores would need locks to achieve the same thing.
+
+3) It's what you'd actually use in production. The app is supposed to be something you'd extend over time, not a prototype.
 
 ---
 
