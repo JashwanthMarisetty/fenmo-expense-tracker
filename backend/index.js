@@ -2,6 +2,7 @@ require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
 const createTable = require('./migrate')
+const expensesRouter = require('./routes/expenses')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -13,7 +14,8 @@ app.get('/', (req, res) => {
   res.json({ message: 'Expense Tracker API is running' })
 })
 
-// start server only after DB is ready
+app.use('/expenses', expensesRouter)
+
 createTable()
   .then(() => {
     app.listen(PORT, () => {
