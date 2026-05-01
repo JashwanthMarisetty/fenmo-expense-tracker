@@ -9,12 +9,10 @@ const ALLOWED_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Health', 'Entertai
 router.post('/', async (req, res) => {
   const { idempotency_key, amount, category, description, date } = req.body
 
-  // validate idempotency key
   if (!idempotency_key || !UUID_RE.test(idempotency_key)) {
     return res.status(400).json({ error: 'idempotency_key must be a valid UUID.' })
   }
 
-  // validate amount
   if (amount === undefined || amount === null || amount === '') {
     return res.status(400).json({ error: 'amount is required.' })
   }
@@ -26,7 +24,6 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'amount must have at most 2 decimal places.' })
   }
 
-  // validate category
   if (!category || !category.trim()) {
     return res.status(400).json({ error: 'category is required.' })
   }
@@ -34,7 +31,6 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: `category must be one of: ${ALLOWED_CATEGORIES.join(', ')}.` })
   }
 
-  // validate description
   if (!description || !description.trim()) {
     return res.status(400).json({ error: 'description is required.' })
   }
@@ -42,7 +38,6 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'description must be 255 characters or fewer.' })
   }
 
-  // validate date
   if (!date || isNaN(Date.parse(date))) {
     return res.status(400).json({ error: 'date must be a valid date (YYYY-MM-DD).' })
   }
@@ -61,7 +56,7 @@ router.post('/', async (req, res) => {
       return res.status(201).json(result.rows[0])
     }
 
-    // duplicate request — return the original row so the client can proceed normally
+    // duplicate request - return the original row so the client can proceed normally
     const existing = await pool.query(
       'SELECT * FROM expenses WHERE idempotency_key = $1',
       [idempotency_key]
@@ -74,30 +69,52 @@ router.post('/', async (req, res) => {
   }
 })
 
-// GET /expenses - list with optional filter and sort
+// GET /expenses - list with optional filter, sort, and pagination
 router.get('/', async (req, res) => {
   const { category, sort } = req.query
 
-  let query = `
-    SELECT id, amount::text AS amount, category, description,
-           date, created_at
-    FROM expenses
-  `
+  // pagination - default 20 per page, max 100
+  const page = Math.max(1, parseInt(req.query.page) || 1)
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20))
+  const offset = (page - 1) * limit
+
   const params = []
+  let whereClause = ''
 
   if (category && category.trim()) {
     params.push(category.trim())
-    query += ` WHERE category = $${params.length}`
+    whereClause = ` WHERE category = $${params.length}`
   }
 
-  // amount cast to text so JS never receives a float (preserves NUMERIC(12,2) precision)
-  query += sort === 'date_asc'
-    ? ' ORDER BY date ASC, created_at ASC'
-    : ' ORDER BY date DESC, created_at DESC'
+  const orderClause = sort === 'date_asc'
+    ? 'ORDER BY date ASC, created_at ASC'
+    : 'ORDER BY date DESC, created_at DESC'
 
   try {
-    const result = await pool.query(query, params)
-    return res.status(200).json(result.rows)
+    // run count and data queries in parallel for efficiency
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(`SELECT COUNT(*) FROM expenses${whereClause}`, params),
+      pool.query(
+        // amount cast to ::text so JS never receives a float (preserves NUMERIC(12,2) precision)
+        `SELECT id, amount::text AS amount, category, description, date, created_at
+         FROM expenses${whereClause}
+         ${orderClause}
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset]
+      )
+    ])
+
+    const total = parseInt(countResult.rows[0].count)
+
+    return res.status(200).json({
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    })
   } catch (err) {
     console.error('GET /expenses:', err)
     return res.status(500).json({ error: 'Internal server error.' })
