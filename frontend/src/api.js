@@ -5,7 +5,7 @@ export async function getExpenses(category, sort, page = 1) {
   if (category) params.set('category', category)
   if (sort) params.set('sort', sort)
   params.set('page', page)
-  params.set('limit', '20')
+  params.set('limit', '7')
 
   const res = await fetch(`${API_URL}/expenses?${params}`)
   if (!res.ok) throw new Error('Failed to load expenses')
