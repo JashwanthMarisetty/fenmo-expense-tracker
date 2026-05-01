@@ -5,6 +5,7 @@ const CATEGORIES = ['Food', 'Transport', 'Shopping', 'Health', 'Entertainment', 
 
 function ExpenseForm({ onAdded }) {
   const idempotencyKey = useRef(crypto.randomUUID())
+  const isSubmitting = useRef(false)  // ref so the check is synchronous, not async like setState
 
   const [form, setForm] = useState({
     amount: '',
@@ -28,6 +29,9 @@ function ExpenseForm({ onAdded }) {
       return
     }
 
+    // synchronous guard — blocks a second click before React re-renders
+    if (isSubmitting.current) return
+    isSubmitting.current = true
     setLoading(true)
     try {
       await addExpense({
@@ -46,6 +50,7 @@ function ExpenseForm({ onAdded }) {
     } catch (err) {
       setError(err.message)
     } finally {
+      isSubmitting.current = false
       setLoading(false)
     }
   }
