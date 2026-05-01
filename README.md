@@ -5,6 +5,10 @@ A simple expense tracker where you can add, view, filter and sort your expenses.
 - **Live app:** https://fenmo-expense-tracker-wheat.vercel.app
 - **Backend API:** https://fenmo-expense-tracker-a7bk.onrender.com/health
 
+## Architecture
+
+![Architecture Diagram](Architectre.png)
+
 ---
 
 ## What it does
