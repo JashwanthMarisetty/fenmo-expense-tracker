@@ -45,4 +45,31 @@ router.post('/', async (req, res) => {
   }
 })
 
+// GET /expenses - list all expenses with optional filter and sort
+router.get('/', async (req, res) => {
+  const { category, sort } = req.query
+
+  let query = 'SELECT * FROM expenses'
+  const params = []
+
+  if (category) {
+    params.push(category)
+    query += ` WHERE category = $${params.length}`
+  }
+
+  if (sort === 'date_desc') {
+    query += ' ORDER BY date DESC, created_at DESC'
+  } else {
+    query += ' ORDER BY created_at DESC'
+  }
+
+  try {
+    const result = await pool.query(query, params)
+    return res.status(200).json(result.rows)
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'Something went wrong' })
+  }
+})
+
 module.exports = router
